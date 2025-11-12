@@ -116,7 +116,7 @@ const Auth = {
 
             // Charger les données et démarrer le timer
             await Transactions.loadData();
-            UI.startSessionTimer();
+            UI.startInactivityTimer();
 
         } catch (error) {
             console.error('Erreur:', error);
@@ -130,11 +130,8 @@ const Auth = {
             return;
         }
 
-        // Arrêter le timer
-        if (this.sessionTimerInterval) {
-            clearInterval(this.sessionTimerInterval);
-            this.sessionTimerInterval = null;
-        }
+        // Arrêter le timer d'inactivité
+        UI.stopInactivityTimer();
 
         // Réinitialiser
         this.token = null;
@@ -202,7 +199,7 @@ const Auth = {
                 this.logout();
             });
 
-            UI.startSessionTimer();
+            UI.startInactivityTimer();
         }
     }
 };

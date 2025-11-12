@@ -1,5 +1,9 @@
 // Gestion de l'interface utilisateur
 const UI = {
+    inactivityTimer: null,
+    lastActivityTime: null,
+    timerUpdateInterval: null,
+
     // Toggle dark mode
     toggleTheme() {
         document.body.classList.toggle('dark-mode');
@@ -57,37 +61,98 @@ const UI = {
         alertDiv.style.display = 'flex';
     },
 
-    // Timer de session
-    startSessionTimer() {
-        if (Auth.sessionTimerInterval) {
-            clearInterval(Auth.sessionTimerInterval);
-        }
+    startInactivityTimer() {
+        // Arrêter les timers existants
+        this.stopInactivityTimer();
 
-        const loginTime = Date.now();
-        localStorage.setItem(CONFIG.STORAGE_KEYS.LOGIN_TIME, loginTime.toString());
+        // Initialiser le temps de dernière activité
+        this.lastActivityTime = Date.now();
 
-        this.updateTimerDisplay(CONFIG.TOKEN_EXPIRY);
+        // Mettre à jour l'affichage du timer chaque seconde
+        this.timerUpdateInterval = setInterval(() => {
+            const timeSinceActivity = Date.now() - this.lastActivityTime;
+            const timeRemaining = CONFIG.INACTIVITY_TIMEOUT - timeSinceActivity;
 
-        Auth.sessionTimerInterval = setInterval(() => {
-            const elapsed = Date.now() - loginTime;
-            const remaining = CONFIG.TOKEN_EXPIRY - elapsed;
-
-            if (remaining <= 0) {
-                clearInterval(Auth.sessionTimerInterval);
-                alert('Votre session a expiré !');
+            if (timeRemaining <= 0) {
+                // Déconnexion par inactivité
+                this.stopInactivityTimer();
+                alert('Vous avez été déconnecté pour cause d\'inactivité.');
                 Auth.logout();
             } else {
-                this.updateTimerDisplay(remaining);
+                // Mettre à jour l'affichage
+                this.updateTimerDisplay(timeRemaining);
             }
-        }, 1000); // Mise à jour chaque seconde
+        }, 1000);
+
+        // Écouter les événements d'activité
+        this.attachActivityListeners();
+
+        console.log('Timer d\'inactivité démarré');
+    },
+
+    stopInactivityTimer() {
+        if (this.timerUpdateInterval) {
+            clearInterval(this.timerUpdateInterval);
+            this.timerUpdateInterval = null;
+        }
+
+        if (this.inactivityTimer) {
+            clearTimeout(this.inactivityTimer);
+            this.inactivityTimer = null;
+        }
+
+        this.removeActivityListeners();
+    },
+
+    resetInactivityTimer() {
+        this.lastActivityTime = Date.now();
+        // console.log('🔄 Timer réinitialisé'); // Debug
+    },
+
+    // ✅ NOUVEAU : Attacher les listeners d'activité
+    attachActivityListeners() {
+        // Liste des événements qui comptent comme "activité"
+        const activityEvents = [
+            'mousedown',    // Click souris
+            'mousemove',    // Mouvement souris
+            'keydown',      // Touche clavier
+            'scroll',       // Scroll
+            'touchstart',   // Touch mobile
+            'click'         // Click général
+        ];
+
+        // Attacher les listeners sur le document
+        activityEvents.forEach(event => {
+            document.addEventListener(event, this.resetInactivityTimer.bind(this), { passive: true });
+        });
+    },
+
+    removeActivityListeners() {
+        const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+
+        activityEvents.forEach(event => {
+            document.removeEventListener(event, this.resetInactivityTimer.bind(this));
+        });
     },
 
     // Mettre à jour l'affichage du timer
     updateTimerDisplay(milliseconds) {
         const minutes = Math.floor(milliseconds / 60000);
         const seconds = Math.floor((milliseconds % 60000) / 1000);
-        document.getElementById('timer-display').textContent =
-            `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        const timerDisplay = document.getElementById('timer-display');
+
+        if (timerDisplay) {
+            timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            // ✅ NOUVEAU : Changer la couleur si moins d'1 minute
+            if (minutes === 0 && seconds <= 60) {
+                timerDisplay.style.color = '#ef4444'; // Rouge
+                timerDisplay.style.fontWeight = 'bold';
+            } else {
+                timerDisplay.style.color = '';
+                timerDisplay.style.fontWeight = '';
+            }
+        }
     }
 };
 
